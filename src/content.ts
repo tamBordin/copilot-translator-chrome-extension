@@ -103,7 +103,7 @@ document.head.appendChild(style);
 
 // Configuration
 const DEBOUNCE_DELAY = 750; // ms
-const SERVER_URL = "http://localhost:3000/translate";
+const SERVER_URL = "http://localhost:5555/translate";
 const TARGET_LANGUAGE = "Thai";
 
 // Create Tooltip Element
