@@ -5,7 +5,6 @@ import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
-// Load .env from the server directory
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, ".env") });
@@ -16,18 +15,7 @@ const port = process.env.PORT || 5555;
 app.use(cors());
 app.use(express.json());
 
-// Token Management
-// Prioritize GH_TOKEN from .env file or environment variables
-const GH_TOKEN = process.env.GH_TOKEN;
-
-if (!GH_TOKEN) {
-  console.warn(
-    "WARNING: GH_TOKEN is not set in .env or environment variables.",
-  );
-}
-
 const client = new CopilotClient();
-let session = null;
 
 app.post("/translate", async (req, res) => {
   const { text, language, mode = "translate" } = req.body;
@@ -36,7 +24,7 @@ app.post("/translate", async (req, res) => {
     return res.status(400).json({ error: "Missing text or language" });
   }
 
-  console.log(`Processing [${mode}] request...`);
+  console.log(`Processing [${mode}] request (streaming)...`);
 
   const instruction = `
 Instruction:
@@ -46,44 +34,43 @@ Instruction:
 - ให้แปลทุกอันห้ามตกหล่น ห้ามสรุป
 - ถ้าคิดว่านี่คือเกี่ยวกับ coding ให้อธิบายเป็น code block ได้ให้ใส่ code block มา
 `;
+
   const prompt = `${instruction}\n\nUser Input: "${text}"`;
 
-  const sendRequest = async (currentSession) => {
-    return await currentSession.sendAndWait({ prompt });
-  };
-
   try {
-    // 1. Initialize session if not exists
-    if (!session) {
-      const models = ["gpt-4.1", "gpt-4o", "gpt-5-mini", "grok-code-fast-1"]; // Model list for 0x free tier users
-      session = await client.createSession({ model: models[0] });
-    }
+    const session = await client.createSession({
+      model: "gpt-4.1",
+      streaming: true,
+      systemMessage: {
+        mode: "replace",
+        content: instruction,
+      },
+    });
 
-    // 2. Try sending request
-    let response;
-    try {
-      response = await sendRequest(session);
-    } catch (sessionError) {
-      console.warn(
-        "Session error, attempting to refresh session...",
-        sessionError.message,
-      );
-      // Retry logic: Force new session and try once more
-      session = await client.createSession({ model: models[0] });
-      response = await sendRequest(session);
-    }
+    const done = new Promise((resolve, reject) => {
+      session.on((event) => {
+        if (event.type === "assistant.message_delta") {
+          res.write(event.data.deltaContent);
+        } else if (event.type === "session.idle") {
+          resolve();
+        } else if (event.type === "error") {
+          reject(new Error(event.data?.message || "Unknown error"));
+        }
+      });
+    });
 
-    const translation =
-      response?.data?.content || response.text || JSON.stringify(response);
-
-    res.json({ translation });
+    await session.send({ prompt: prompt });
+    await done;
+    await session.destroy();
+    res.end();
   } catch (error) {
     console.error("Copilot SDK Error:", error);
-    session = null;
-    res.json({
-      translation: `[Error]: ${error.message || "Failed to connect to Copilot"}`,
-      note: "Ensure your GH_TOKEN is valid and the server has access.",
-    });
+    if (!res.headersSent) {
+      res.status(500).json({ error: error.message });
+    } else {
+      res.write(`\n\n[Error]: ${error.message}`);
+      res.end();
+    }
   }
 });
 
