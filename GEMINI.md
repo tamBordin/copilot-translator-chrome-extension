@@ -10,7 +10,7 @@ Unlike traditional translators, this extension:
 3.  **Privacy-Focused:** Requires a local backend server to communicate with GitHub Copilot, ensuring your tokens remain under your control.
 
 ### Key Features
-*   **Trigger Key:** Hold `Alt` (or `Option` on Mac) + Select text to trigger. No accidental popups.
+*   **Smart Trigger:** Simply **Select/Highlight** text to trigger the translator (with a short delay).
 *   **Smart Code Detection:** Automatically switches between "Translate Mode" and "Code Explanation Mode" based on the selected content.
 *   **Caching:** Instant results for previously translated phrases.
 *   **Action Buttons:**
@@ -23,7 +23,7 @@ Unlike traditional translators, this extension:
 The project consists of two parts:
 
 1.  **Frontend (Chrome Extension):**
-    *   Built with **React + TypeScript + Vite**.
+    *   Built with **React 19 + TypeScript + Vite**.
     *   Uses **Content Scripts** (`src/content.ts`) to inject the UI into webpages.
     *   Handles user interactions (selection, shortcuts, buttons).
 
@@ -46,7 +46,7 @@ You must run the local server for the extension to work.
 ```bash
 cd server
 npm install
-# Edit server/index.js to set your GH_TOKEN, or set it via environment variable
+# Create a .env file and set your GH_TOKEN, or set it via environment variable
 node index.js
 # Or for auto-reload during development:
 npm run dev
@@ -54,8 +54,9 @@ npm run dev
 
 ### 3. Build the Extension
 ```bash
-npm run build && cp manifest.json dist/ && cp -r public/* dist/ 2>/dev/null || :
+npm run build && cp manifest.json dist/
 ```
+*Note: Vite handles copying files from the `public/` directory automatically.*
 
 ### 4. Install in Chrome
 1.  Open `chrome://extensions/`.
@@ -67,7 +68,7 @@ npm run build && cp manifest.json dist/ && cp -r public/* dist/ 2>/dev/null || :
 1.  Open any webpage.
 2.  Click the extension icon and ensure the **Status is Active** (🟢).
 3.  **Select/Highlight** any text or code you want to understand.
-4.  A tooltip will appear with the result.
+4.  A tooltip will appear with the result after a brief pause.
 5.  To temporarily stop the extension, click the icon and toggle the switch to **Inactive** (⚪️).
 
 ## Development
