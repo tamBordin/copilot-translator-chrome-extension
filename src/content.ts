@@ -48,7 +48,7 @@ style.textContent = `
     border: none;
     color: #aaa;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 15px;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -64,7 +64,7 @@ style.textContent = `
   .copilot-content {
     margin-bottom: 4px;
     word-break: break-word;
-    font-size: 14px;
+    font-size: 15px;
   }
   /* Markdown Styles */
   .copilot-content pre {
@@ -77,7 +77,7 @@ style.textContent = `
   }
   .copilot-content code {
     font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-    font-size: 13px;
+    font-size: 15px;
     background: rgba(255,255,255,0.1);
     padding: 2px 4px;
     border-radius: 4px;
