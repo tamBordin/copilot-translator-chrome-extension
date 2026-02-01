@@ -16,6 +16,7 @@ app.use(cors());
 app.use(express.json());
 
 const client = new CopilotClient();
+let globalSession = null;
 
 app.post("/translate", async (req, res) => {
   const { text, language, mode = "translate" } = req.body;
@@ -39,17 +40,20 @@ Instruction:
   const prompt = `${instruction}\n\nUser Input: "${text}"`;
 
   try {
-    const session = await client.createSession({
-      model: "gpt-4.1",
-      streaming: true,
-      systemMessage: {
-        mode: "replace",
-        content: instruction,
-      },
-    });
+    if (!globalSession) {
+      globalSession = await client.createSession({
+        model: "gpt-4.1",
+        streaming: true,
+        systemMessage: {
+          mode: "replace",
+          content: "You are a helpful assistant. You will receive instructions in each prompt.",
+        },
+      });
+    }
 
+    let unsubscribe;
     const done = new Promise((resolve, reject) => {
-      session.on((event) => {
+      unsubscribe = globalSession.on((event) => {
         if (event.type === "assistant.message_delta") {
           res.write(event.data.deltaContent);
         } else if (event.type === "session.idle") {
@@ -60,12 +64,22 @@ Instruction:
       });
     });
 
-    await session.send({ prompt: prompt });
+    await globalSession.send({ prompt: prompt });
     await done;
-    await session.destroy();
+    unsubscribe();
     res.end();
   } catch (error) {
     console.error("Copilot SDK Error:", error);
+    // If error, destroy session to be safe for next time
+    if (globalSession) {
+      try {
+        await globalSession.destroy();
+      } catch (e) {
+        console.error("Error destroying session:", e);
+      }
+      globalSession = null;
+    }
+
     if (!res.headersSent) {
       res.status(500).json({ error: error.message });
     } else {
