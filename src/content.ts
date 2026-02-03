@@ -124,7 +124,7 @@ style.textContent = `
     word-break: break-word;
     font-size: 17px;
     color: #f0f0f0;
-    max-height: 400px;
+    max-height: 250px;
     overflow-y: auto;
     padding-right: 4px;
   }
