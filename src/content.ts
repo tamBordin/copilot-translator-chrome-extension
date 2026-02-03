@@ -339,7 +339,7 @@ async function translateAndShow(text: string, x: number, y: number) {
   el.innerHTML = `
     <div style="display: flex; align-items: center; color: #8b949e; padding: 4px 0;">
       <span class="copilot-loading-spinner"></span>
-      <span style="font-weight: 500;">${isCode ? "Analyzing Code..." : "Translating..."}</span>
+      <span style="font-weight: 500;">${"Translating..."}</span>
     </div>
   `;
   positionTooltip(el, x, y);
@@ -353,7 +353,7 @@ async function translateAndShow(text: string, x: number, y: number) {
       body: JSON.stringify({
         text,
         language: targetLanguage,
-        mode: isCode ? "code" : "translate",
+        mode: "translate",
       }),
     });
 
