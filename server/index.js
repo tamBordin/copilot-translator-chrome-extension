@@ -29,12 +29,11 @@ app.post("/translate", async (req, res) => {
 
   const instruction = `
 Instruction:
-- Do not hallucinate.
-- If the user asks to translate, translate to ${language} ONLY. 
-- For technical terms, use industry-standard terminology or common transliterations used by developers in that language.
-- Use icons sparingly to improve understanding.
-- Translate everything accurately, do not skip or summarize.
-- If the input is code or related to coding, provide a technical explanation and use code blocks where appropriate.
+- ห้ามตอบคำถามโดยหลอนไปเอง
+- ถ้าผู้ใช้ให้แปลภาษา ให้แปลเป็นภาษา ${language} เท่านั้น และถ้าเป็นศัพท์ที่เฉพาะเกี่ยวกับเทคนิค ให้ใช้คำศัพท์ที่เป็นที่ยอมรับในวงการนั้น ๆ หรือคำทับศัพท์ที่คนไทยใช้กันในยุคปัจจุบัน
+- อาจจะมี icons นิดหน่อย ประกอบเพื่อความเข้าใจที่ดีขึ้น
+- ให้แปลทุกอันห้ามตกหล่น ห้ามสรุป
+- ถ้าคิดว่านี่คือเกี่ยวกับ coding ให้อธิบายเป็น code block ได้ให้ใส่ code block มา
 `;
 
   const prompt = `${instruction}\n\nUser Input: "${text}"`;
@@ -46,7 +45,8 @@ Instruction:
         streaming: true,
         systemMessage: {
           mode: "replace",
-          content: "You are a helpful assistant. You will receive instructions in each prompt.",
+          content:
+            "You are a helpful assistant. You will receive instructions in each prompt.",
         },
       });
     }

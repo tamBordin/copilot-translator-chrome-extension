@@ -15,11 +15,14 @@ interface StorageResult {
 
 // Initialize state from storage
 if (typeof chrome !== "undefined" && chrome.storage) {
-  chrome.storage.local.get(["isEnabled", "targetLanguage", "debounceDelay"], (result: StorageResult) => {
-    isExtensionEnabled = result.isEnabled !== false;
-    targetLanguage = result.targetLanguage || "Thai";
-    debounceDelay = result.debounceDelay || 350;
-  });
+  chrome.storage.local.get(
+    ["isEnabled", "targetLanguage", "debounceDelay"],
+    (result: StorageResult) => {
+      isExtensionEnabled = result.isEnabled !== false;
+      targetLanguage = result.targetLanguage || "Thai";
+      debounceDelay = result.debounceDelay || 350;
+    },
+  );
 
   // Listen for storage changes
   chrome.storage.onChanged.addListener((changes, namespace) => {
@@ -41,7 +44,131 @@ if (typeof chrome !== "undefined" && chrome.storage) {
 
 // Inject CSS
 const style = document.createElement("style");
-style.textContent = "\n  @keyframes copilot-fade-in {\n    from { opacity: 0; transform: translateY(5px); }\n    to { opacity: 1; transform: translateY(0); }\n  }\n  @keyframes copilot-spin {\n    to { transform: rotate(360deg); }\n  }\n  .copilot-tooltip {\n    font-family: 'Inter', -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif;\n    line-height: 1.6;\n    letter-spacing: 0.01em;\n  }\n  .copilot-loading-spinner {\n    display: inline-block;\n    width: 16px;\n    height: 16px;\n    border: 2px solid rgba(255,255,255,0.3);\n    border-radius: 50%;\n    border-top-color: #fff;\n    animation: copilot-spin 1s ease-in-out infinite;\n    margin-right: 8px;\n    vertical-align: middle;\n  }\n  .copilot-header {\n    display: flex;\n    justify-content: flex-end;\n    margin-bottom: -20px;\n    position: relative;\n    z-index: 10;\n  }\n  .copilot-close {\n    background: none;\n    border: none;\n    color: #8b949e;\n    cursor: pointer;\n    font-size: 18px;\n    padding: 4px;\n    line-height: 1;\n    border-radius: 4px;\n    transition: all 0.2s;\n  }\n  .copilot-close:hover {\n    color: #fff;\n    background: rgba(255,255,255,0.1);\n  }\n  .copilot-actions {\n    margin-top: 12px;\n    padding-top: 10px;\n    border-top: 1px solid rgba(255,255,255,0.1);\n    display: flex;\n    gap: 8px;\n    justify-content: flex-end;\n  }\n  .copilot-btn {\n    background: rgba(255,255,255,0.05);\n    border: 1px solid rgba(255,255,255,0.1);\n    color: #e0e0e0;\n    cursor: pointer;\n    font-size: 13px;\n    font-weight: 500;\n    display: flex;\n    align-items: center;\n    gap: 6px;\n    padding: 6px 12px;\n    border-radius: 6px;\n    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);\n    font-family: inherit;\n  }\n  .copilot-btn:hover {\n    background: rgba(255,255,255,0.15);\n    color: #fff;\n    transform: translateY(-1px);\n    box-shadow: 0 2px 8px rgba(0,0,0,0.2);\n  }\n  .copilot-content {\n    margin-bottom: 8px;\n    word-break: break-word;\n    font-size: 15px;\n    color: #f0f0f0;\n  }\n  .copilot-content pre {\n    background: #111;\n    padding: 12px;\n    border-radius: 8px;\n    overflow-x: auto;\n    margin: 12px 0;\n    border: 1px solid #333;\n    font-size: 13px;\n  }\n  .copilot-content code {\n    font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;\n    font-size: 85%;\n    background: rgba(255,255,255,0.15);\n    padding: 2px 6px;\n    border-radius: 4px;\n    color: #ff9d9d;\n  }\n  .copilot-content pre code {\n    background: transparent;\n    padding: 0;\n    color: #d4d4d4;\n    font-size: 100%;\n  }\n  .copilot-content p { margin: 8px 0; }\n  .copilot-content ul { margin: 8px 0; padding-left: 24px; }\n  .copilot-content li { margin-bottom: 4px; }\n  .copilot-content strong { color: #7ee787; font-weight: 600; }\n";
+style.textContent = `
+  @keyframes copilot-fade-in {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes copilot-spin {
+    to { transform: rotate(360deg); }
+  }
+  .copilot-tooltip {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
+  }
+  .copilot-loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: copilot-spin 1s ease-in-out infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .copilot-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: -20px;
+    position: relative;
+    z-index: 10;
+  }
+  .copilot-close {
+    background: none;
+    border: none;
+    color: #8b949e;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px;
+    line-height: 1;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+  .copilot-close:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.1);
+  }
+  .copilot-actions {
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .copilot-btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #e0e0e0;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-family: inherit;
+  }
+  .copilot-btn:hover {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .copilot-content {
+    margin-bottom: 8px;
+    word-break: break-word;
+    font-size: 17px;
+    color: #f0f0f0;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .copilot-content::-webkit-scrollbar {
+    width: 4px;
+  }
+  .copilot-content::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .copilot-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+  }
+  .copilot-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  .copilot-content pre {
+    background: #111;
+    padding: 12px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 12px 0;
+    border: 1px solid #333;
+    font-size: 13px;
+  }
+  .copilot-content code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+    font-size: 85%;
+    background: rgba(255,255,255,0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #ff9d9d;
+  }
+  .copilot-content pre code {
+    background: transparent;
+    padding: 0;
+    color: #d4d4d4;
+    font-size: 100%;
+  }
+  .copilot-content p { margin: 8px 0; }
+  .copilot-content ul { margin: 8px 0; padding-left: 24px; }
+  .copilot-content li { margin-bottom: 4px; }
+  .copilot-content strong { color: #7ee787; font-weight: 600; }
+`;
 document.head.appendChild(style);
 
 function hideTooltip() {
@@ -70,10 +197,11 @@ function createTooltip() {
   div.style.color = "#c9d1d9";
   div.style.padding = "16px";
   div.style.borderRadius = "12px";
-  div.style.boxShadow = "0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)";
+  div.style.boxShadow =
+    "0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)";
   div.style.fontSize = "15px";
-  div.style.maxWidth = "450px";
-  div.style.minWidth = "200px";
+  div.style.maxWidth = "500px";
+  div.style.minWidth = "250px";
   div.style.opacity = "0";
   div.style.transition = "opacity 0.3s ease, transform 0.3s ease";
   div.style.transform = "translateY(10px) scale(0.95)";
@@ -127,10 +255,13 @@ function parseMarkdown(text: string): string {
   html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
   html = html.replace(/^\s*-\s+(.*)/gm, "<li>$1</li>");
   html = html.replace(/(<li>.*<\/li>)/s, "<ul>$1</ul>");
-  html = html.split(/\n\n/).map(p => {
-    if (p.trim().startsWith("<pre") || p.trim().startsWith("<ul")) return p;
-    return `<p>${p}</p>`;
-  }).join("");
+  html = html
+    .split(/\n\n/)
+    .map((p) => {
+      if (p.trim().startsWith("<pre") || p.trim().startsWith("<ul")) return p;
+      return `<p>${p}</p>`;
+    })
+    .join("");
   return html;
 }
 
@@ -151,7 +282,10 @@ function showTranslation(text: string, x: number, y: number) {
     </div>
   `;
 
-  el.querySelector("#copilot-close-btn")?.addEventListener("click", hideTooltip);
+  el.querySelector("#copilot-close-btn")?.addEventListener(
+    "click",
+    hideTooltip,
+  );
 
   el.querySelector("#copilot-btn-speak")?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -168,7 +302,7 @@ function showTranslation(text: string, x: number, y: number) {
       const btn = e.currentTarget as HTMLButtonElement;
       const original = btn.textContent;
       btn.textContent = "✅ Copied!";
-      setTimeout(() => btn.textContent = original, 2000);
+      setTimeout(() => (btn.textContent = original), 2000);
     });
   });
 
@@ -216,7 +350,11 @@ async function translateAndShow(text: string, x: number, y: number) {
     const response = await fetch(SERVER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, language: targetLanguage, mode: isCode ? "code" : "translate" }),
+      body: JSON.stringify({
+        text,
+        language: targetLanguage,
+        mode: isCode ? "code" : "translate",
+      }),
     });
 
     if (!response.ok) throw new Error("Server error");
@@ -244,7 +382,11 @@ function handleSelection(event: MouseEvent | KeyboardEvent) {
   const selectedText = selection?.toString().trim();
 
   if (!selectedText || selectedText.length < 2) {
-    if (event instanceof MouseEvent && tooltip && !tooltip.contains(event.target as Node)) {
+    if (
+      event instanceof MouseEvent &&
+      tooltip &&
+      !tooltip.contains(event.target as Node)
+    ) {
       hideTooltip();
     }
     return;
