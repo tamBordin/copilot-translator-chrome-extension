@@ -124,7 +124,7 @@ style.textContent = `
     word-break: break-word;
     font-size: 17px;
     color: #f0f0f0;
-    max-height: 250px;
+    max-height: 300px;
     overflow-y: auto;
     padding-right: 4px;
   }
@@ -212,7 +212,7 @@ function createTooltip() {
 }
 
 function positionTooltip(el: HTMLElement, x: number, y: number) {
-  const spacing = 10;
+  const spacing = 12;
   const screenWidth = window.innerWidth;
   const screenHeight = window.innerHeight;
   const scrollX = window.scrollX;
@@ -225,19 +225,39 @@ function positionTooltip(el: HTMLElement, x: number, y: number) {
   el.style.display = "";
   el.style.visibility = "";
 
-  // Center horizontally relative to 'x'
+  // 1. Horizontal Positioning (Centered)
   let left = x - rect.width / 2;
-  let top = y + spacing;
-
-  // Horizontal overflow
+  // Constraint to screen edges
   if (left + rect.width > screenWidth + scrollX - spacing) {
     left = screenWidth + scrollX - rect.width - spacing;
   }
   if (left < scrollX + spacing) left = scrollX + spacing;
 
-  // Vertical overflow
-  if (top + rect.height > screenHeight + scrollY - spacing) {
-    top = y - rect.height - spacing; // Show above selection
+  // 2. Vertical Positioning (Stable)
+  // Calculate space relative to viewport
+  const clientY = y - scrollY;
+  const spaceBelow = screenHeight - clientY - spacing;
+  const spaceAbove = clientY - spacing;
+  
+  const PREFERRED_HEIGHT = 320; // Slightly more than max-height + padding
+
+  let top;
+  // Logic: Prefer below if it fits, or if it has more space than above
+  // Only flip to top if strictly better and necessary
+  const fitsBelow = spaceBelow >= Math.min(rect.height, PREFERRED_HEIGHT);
+  const fitsAbove = spaceAbove >= Math.min(rect.height, PREFERRED_HEIGHT);
+
+  if (fitsBelow) {
+    top = y + spacing;
+  } else if (fitsAbove) {
+    top = y - rect.height - spacing;
+  } else {
+    // Neither fits perfectly, pick the side with more space
+    if (spaceAbove > spaceBelow) {
+      top = y - rect.height - spacing;
+    } else {
+      top = y + spacing;
+    }
   }
 
   el.style.left = `${left}px`;
