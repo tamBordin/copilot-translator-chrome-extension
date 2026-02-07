@@ -212,7 +212,7 @@ function createTooltip() {
 }
 
 function positionTooltip(el: HTMLElement, x: number, y: number) {
-  const spacing = 15;
+  const spacing = 10;
   const screenWidth = window.innerWidth;
   const screenHeight = window.innerHeight;
   const scrollX = window.scrollX;
@@ -225,7 +225,8 @@ function positionTooltip(el: HTMLElement, x: number, y: number) {
   el.style.display = "";
   el.style.visibility = "";
 
-  let left = x;
+  // Center horizontally relative to 'x'
+  let left = x - rect.width / 2;
   let top = y + spacing;
 
   // Horizontal overflow
@@ -394,16 +395,22 @@ function handleSelection(event: MouseEvent | KeyboardEvent) {
 
   if (!isExtensionEnabled) return;
 
+  // Calculate center of selection
   let x, y;
-  if (event instanceof MouseEvent) {
+  const range = selection?.getRangeAt(0);
+  const rect = range?.getBoundingClientRect();
+
+  if (rect) {
+    x = rect.left + rect.width / 2 + window.scrollX;
+    y = rect.bottom + window.scrollY;
+  } else if (event instanceof MouseEvent) {
+    // Fallback to mouse position if range rect is missing (rare)
     x = event.pageX;
     y = event.pageY;
   } else {
-    // Keyboard event, position near selection
-    const range = selection?.getRangeAt(0);
-    const rect = range?.getBoundingClientRect();
-    x = (rect?.left || 0) + window.scrollX;
-    y = (rect?.bottom || 0) + window.scrollY;
+    // Default fallback
+    x = 0;
+    y = 0;
   }
 
   debounceTimer = setTimeout(() => {
