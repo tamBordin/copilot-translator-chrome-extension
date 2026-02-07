@@ -52,10 +52,15 @@ style.textContent = `
   @keyframes copilot-spin {
     to { transform: rotate(360deg); }
   }
+  @keyframes copilot-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
   .copilot-tooltip {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     line-height: 1.6;
     letter-spacing: 0.01em;
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   .copilot-loading-spinner {
     display: inline-block;
@@ -71,7 +76,7 @@ style.textContent = `
   .copilot-header {
     display: flex;
     justify-content: flex-end;
-    margin-bottom: -20px;
+    margin-bottom: -15px;
     position: relative;
     z-index: 10;
   }
@@ -97,6 +102,11 @@ style.textContent = `
     display: flex;
     gap: 8px;
     justify-content: flex-end;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .copilot-actions.visible {
+    opacity: 1;
   }
   .copilot-btn {
     background: rgba(255,255,255,0.05);
@@ -110,23 +120,30 @@ style.textContent = `
     gap: 6px;
     padding: 6px 12px;
     border-radius: 6px;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.2s;
     font-family: inherit;
   }
   .copilot-btn:hover {
     background: rgba(255,255,255,0.15);
     color: #fff;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   }
   .copilot-content {
-    margin-bottom: 8px;
     word-break: break-word;
-    font-size: 17px;
+    font-size: 16px;
     color: #f0f0f0;
-    max-height: 300px;
+    max-height: 350px;
     overflow-y: auto;
     padding-right: 4px;
+    min-height: 20px;
+  }
+  .copilot-streaming-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    background: #7ee787;
+    margin-left: 4px;
+    vertical-align: middle;
+    animation: copilot-blink 0.8s infinite;
   }
   .copilot-content::-webkit-scrollbar {
     width: 4px;
@@ -138,9 +155,6 @@ style.textContent = `
     background: rgba(255, 255, 255, 0.2);
     border-radius: 10px;
   }
-  .copilot-content::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
-  }
   .copilot-content pre {
     background: #111;
     padding: 12px;
@@ -151,23 +165,14 @@ style.textContent = `
     font-size: 13px;
   }
   .copilot-content code {
-    font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 85%;
-    background: rgba(255,255,255,0.15);
-    padding: 2px 6px;
+    background: rgba(255,255,255,0.1);
+    padding: 2px 4px;
     border-radius: 4px;
-    color: #ff9d9d;
-  }
-  .copilot-content pre code {
-    background: transparent;
-    padding: 0;
-    color: #d4d4d4;
-    font-size: 100%;
   }
   .copilot-content p { margin: 8px 0; }
-  .copilot-content ul { margin: 8px 0; padding-left: 24px; }
-  .copilot-content li { margin-bottom: 4px; }
-  .copilot-content strong { color: #7ee787; font-weight: 600; }
+  .copilot-content strong { color: #7ee787; }
 `;
 document.head.appendChild(style);
 
@@ -192,20 +197,31 @@ function createTooltip() {
   div.className = "copilot-tooltip";
   div.style.position = "absolute";
   div.style.zIndex = "2147483647";
-  div.style.backgroundColor = "rgba(22, 27, 34, 0.95)";
-  div.style.backdropFilter = "blur(16px) saturate(180%)";
+  div.style.backgroundColor = "rgba(22, 27, 34, 0.98)";
+  div.style.backdropFilter = "blur(20px) saturate(180%)";
   div.style.color = "#c9d1d9";
   div.style.padding = "16px";
   div.style.borderRadius = "12px";
-  div.style.boxShadow =
-    "0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)";
+  div.style.boxShadow = "0 20px 50px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1)";
   div.style.fontSize = "15px";
-  div.style.maxWidth = "500px";
-  div.style.minWidth = "250px";
+  div.style.maxWidth = "450px";
+  div.style.minWidth = "200px";
   div.style.opacity = "0";
-  div.style.transition = "opacity 0.3s ease, transform 0.3s ease";
   div.style.transform = "translateY(10px) scale(0.95)";
 
+  div.innerHTML = `
+    <div class="copilot-header">
+      <button class="copilot-close" id="copilot-close-btn">×</button>
+    </div>
+    <div class="copilot-content" id="copilot-content-root"></div>
+    <div class="copilot-actions" id="copilot-actions-root">
+      <button class="copilot-btn" id="copilot-btn-speak">🔊 Speak</button>
+      <button class="copilot-btn" id="copilot-btn-copy">📋 Copy</button>
+    </div>
+  `;
+
+  div.querySelector("#copilot-close-btn")?.addEventListener("click", hideTooltip);
+  
   document.body.appendChild(div);
   tooltip = div;
   return div;
@@ -218,50 +234,42 @@ function positionTooltip(el: HTMLElement, x: number, y: number) {
   const scrollX = window.scrollX;
   const scrollY = window.scrollY;
 
-  // Temporarily set to measure
-  el.style.visibility = "hidden";
-  el.style.display = "block";
   const rect = el.getBoundingClientRect();
-  el.style.display = "";
-  el.style.visibility = "";
 
-  // 1. Horizontal Positioning (Centered)
   let left = x - rect.width / 2;
-  // Constraint to screen edges
-  if (left + rect.width > screenWidth + scrollX - spacing) {
-    left = screenWidth + scrollX - rect.width - spacing;
-  }
-  if (left < scrollX + spacing) left = scrollX + spacing;
+  if (left + rect.width > screenWidth + scrollX - 20) left = screenWidth + scrollX - rect.width - 20;
+  if (left < scrollX + 20) left = scrollX + 20;
 
-  // 2. Vertical Positioning (Stable)
-  // Calculate space relative to viewport
   const clientY = y - scrollY;
-  const spaceBelow = screenHeight - clientY - spacing;
-  const spaceAbove = clientY - spacing;
+  const spaceBelow = screenHeight - clientY - 40;
+  const spaceAbove = clientY - 40;
   
-  const PREFERRED_HEIGHT = 320; // Slightly more than max-height + padding
-
   let top;
-  // Logic: Prefer below if it fits, or if it has more space than above
-  // Only flip to top if strictly better and necessary
-  const fitsBelow = spaceBelow >= Math.min(rect.height, PREFERRED_HEIGHT);
-  const fitsAbove = spaceAbove >= Math.min(rect.height, PREFERRED_HEIGHT);
-
-  if (fitsBelow) {
+  if (spaceBelow >= 300 || spaceBelow > spaceAbove) {
     top = y + spacing;
-  } else if (fitsAbove) {
-    top = y - rect.height - spacing;
   } else {
-    // Neither fits perfectly, pick the side with more space
-    if (spaceAbove > spaceBelow) {
-      top = y - rect.height - spacing;
-    } else {
-      top = y + spacing;
-    }
+    top = y - rect.height - spacing;
   }
 
   el.style.left = `${left}px`;
   el.style.top = `${top}px`;
+}
+
+function updateTooltipContent(html: string, isStreaming: boolean = false) {
+  if (!tooltip) return;
+  const contentRoot = tooltip.querySelector("#copilot-content-root");
+  if (contentRoot) {
+    contentRoot.innerHTML = html + (isStreaming ? '<span class="copilot-streaming-cursor"></span>' : '');
+    
+    // Auto-scroll to bottom while streaming
+    if (isStreaming) {
+      contentRoot.scrollTop = contentRoot.scrollHeight;
+    }
+  }
+
+  if (!isStreaming) {
+    tooltip.querySelector("#copilot-actions-root")?.classList.add("visible");
+  }
 }
 
 function parseMarkdown(text: string): string {
@@ -286,83 +294,47 @@ function parseMarkdown(text: string): string {
   return html;
 }
 
-function showTranslation(text: string, x: number, y: number) {
-  const el = createTooltip();
-  const formattedHtml = parseMarkdown(text);
-
-  el.innerHTML = `
-    <div class="copilot-header">
-      <button class="copilot-close" id="copilot-close-btn">×</button>
-    </div>
-    <div class="copilot-content">
-      ${formattedHtml}
-    </div>
-    <div class="copilot-actions">
-      <button class="copilot-btn" id="copilot-btn-speak">🔊 Speak</button>
-      <button class="copilot-btn" id="copilot-btn-copy">📋 Copy</button>
-    </div>
-  `;
-
-  el.querySelector("#copilot-close-btn")?.addEventListener(
-    "click",
-    hideTooltip,
-  );
-
-  el.querySelector("#copilot-btn-speak")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const utterance = new SpeechSynthesisUtterance(text);
-    // Try to detect if it's Thai or English
-    utterance.lang = /[฀-๿]/.test(text) ? "th-TH" : "en-US";
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  });
-
-  el.querySelector("#copilot-btn-copy")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(text).then(() => {
-      const btn = e.currentTarget as HTMLButtonElement;
-      const original = btn.textContent;
-      btn.textContent = "✅ Copied!";
-      setTimeout(() => (btn.textContent = original), 2000);
-    });
-  });
-
-  positionTooltip(el, x, y);
-  el.style.opacity = "1";
-  el.style.transform = "translateY(0) scale(1)";
-}
-
-function isLikeCode(text: string): boolean {
-  const codeIndicators = [
-    /[{};]/,
-    /\b(function|const|let|var|class|import|export|return|if|else|for|while|=>)\b/,
-    /\b(public|private|protected|void|int|string|float)\b/,
-    /\b(def|class|print|import|from)\b/,
-  ];
-  let score = 0;
-  if (text.includes("\n") && /^\s+/.test(text)) score += 1;
-  for (const pattern of codeIndicators) {
-    if (pattern.test(text)) score += 1;
-  }
-  return score >= 1;
-}
-
 async function translateAndShow(text: string, x: number, y: number) {
-  const isCode = isLikeCode(text);
-  const cacheKey = `${targetLanguage}:${isCode ? "CODE:" : "TEXT:"}${text}`;
+  const cacheKey = `${targetLanguage}:"TEXT"${text}`;
 
   if (translationCache.has(cacheKey)) {
-    showTranslation(translationCache.get(cacheKey)!, x, y);
+    const cached = translationCache.get(cacheKey)!;
+    const el = createTooltip();
+    positionTooltip(el, x, y);
+    el.style.opacity = "1";
+    el.style.transform = "translateY(0) scale(1)";
+    updateTooltipContent(parseMarkdown(cached), false);
+    
+    // Actions listeners
+    el.querySelector("#copilot-btn-speak")?.replaceWith(el.querySelector("#copilot-btn-speak")!.cloneNode(true));
+    el.querySelector("#copilot-btn-copy")?.replaceWith(el.querySelector("#copilot-btn-copy")!.cloneNode(true));
+    
+    el.querySelector("#copilot-btn-speak")?.addEventListener("click", () => {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(cached);
+      utterance.lang = /[฀-๿]/.test(cached) ? "th-TH" : "en-US";
+      window.speechSynthesis.speak(utterance);
+    });
+
+    el.querySelector("#copilot-btn-copy")?.addEventListener("click", (e) => {
+      navigator.clipboard.writeText(cached).then(() => {
+        const btn = e.currentTarget as HTMLButtonElement;
+        const original = btn.textContent;
+        btn.textContent = "✅ Copied!";
+        setTimeout(() => (btn.textContent = original), 2000);
+      });
+    });
     return;
   }
 
   const el = createTooltip();
-  el.innerHTML = `
-    <div style="display: flex; align-items: center; color: #8b949e; padding: 4px 0;">
+  updateTooltipContent(`
+    <div style="display: flex; align-items: center; color: #8b949e; padding: 10px 0;">
       <span class="copilot-loading-spinner"></span>
-      <span style="font-weight: 500;">${"Translating..."}</span>
+      <span style="font-weight: 500;">Translating...</span>
     </div>
-  `;
+  `, true);
+  
   positionTooltip(el, x, y);
   el.style.opacity = "1";
   el.style.transform = "translateY(0) scale(1)";
@@ -371,11 +343,7 @@ async function translateAndShow(text: string, x: number, y: number) {
     const response = await fetch(SERVER_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text,
-        language: targetLanguage,
-        mode: "translate",
-      }),
+      body: JSON.stringify({ text, language: targetLanguage, mode: "translate" }),
     });
 
     if (!response.ok) throw new Error("Server error");
@@ -384,15 +352,37 @@ async function translateAndShow(text: string, x: number, y: number) {
 
     const decoder = new TextDecoder();
     let accumulated = "";
+    
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       accumulated += decoder.decode(value, { stream: true });
-      showTranslation(accumulated, x, y);
+      updateTooltipContent(parseMarkdown(accumulated), true);
+      positionTooltip(el, x, y); // Dynamic resize support
     }
+
     translationCache.set(cacheKey, accumulated);
+    updateTooltipContent(parseMarkdown(accumulated), false);
+
+    // Setup actions
+    el.querySelector("#copilot-btn-speak")?.addEventListener("click", () => {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(accumulated);
+      utterance.lang = /[฀-๿]/.test(accumulated) ? "th-TH" : "en-US";
+      window.speechSynthesis.speak(utterance);
+    });
+
+    el.querySelector("#copilot-btn-copy")?.addEventListener("click", (e) => {
+      navigator.clipboard.writeText(accumulated).then(() => {
+        const btn = e.currentTarget as HTMLButtonElement;
+        const original = btn.textContent;
+        btn.textContent = "✅ Copied!";
+        setTimeout(() => (btn.textContent = original), 2000);
+      });
+    });
+
   } catch (error) {
-    showTranslation("⚠️ Error: " + error, x, y);
+    updateTooltipContent(`<div style="color: #ff7b72;">⚠️ Error: ${error}</div>`, false);
   }
 }
 
