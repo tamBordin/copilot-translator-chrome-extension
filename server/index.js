@@ -18,6 +18,41 @@ app.use(express.json());
 const client = new CopilotClient();
 let globalSession = null;
 
+async function getSession() {
+  if (!globalSession) {
+    console.log("Creating new Copilot session...");
+    globalSession = await client.createSession({
+      model: "gpt-4.1",
+      streaming: true,
+      systemMessage: {
+        mode: "replace",
+        content:
+          "You are a helpful assistant. You will receive instructions in each prompt.",
+      },
+    });
+  }
+  return globalSession;
+}
+
+async function processRequest(session, prompt, res) {
+  let unsubscribe;
+  const done = new Promise((resolve, reject) => {
+    unsubscribe = session.on((event) => {
+      if (event.type === "assistant.message_delta") {
+        res.write(event.data.deltaContent);
+      } else if (event.type === "session.idle") {
+        resolve();
+      } else if (event.type === "error") {
+        reject(new Error(event.data?.message || "Unknown error"));
+      }
+    });
+  });
+
+  await session.send({ prompt: prompt });
+  await done;
+  if (unsubscribe) unsubscribe();
+}
+
 app.post("/translate", async (req, res) => {
   const { text, language, mode = "translate" } = req.body;
 
@@ -39,34 +74,23 @@ Instruction:
   const prompt = `${instruction}\n\nUser Input: "${text}"`;
 
   try {
-    if (!globalSession) {
-      globalSession = await client.createSession({
-        model: "gpt-4.1",
-        streaming: true,
-        systemMessage: {
-          mode: "replace",
-          content:
-            "You are a helpful assistant. You will receive instructions in each prompt.",
-        },
-      });
+    let session = await getSession();
+    try {
+      await processRequest(session, prompt, res);
+    } catch (err) {
+      if (
+        err.message &&
+        (err.message.includes("Session not found") ||
+          err.message.includes("session not found"))
+      ) {
+        console.warn("Session expired or not found. Retrying with new session...");
+        globalSession = null; // Force new session creation
+        session = await getSession();
+        await processRequest(session, prompt, res);
+      } else {
+        throw err; // Re-throw if it's not a session error
+      }
     }
-
-    let unsubscribe;
-    const done = new Promise((resolve, reject) => {
-      unsubscribe = globalSession.on((event) => {
-        if (event.type === "assistant.message_delta") {
-          res.write(event.data.deltaContent);
-        } else if (event.type === "session.idle") {
-          resolve();
-        } else if (event.type === "error") {
-          reject(new Error(event.data?.message || "Unknown error"));
-        }
-      });
-    });
-
-    await globalSession.send({ prompt: prompt });
-    await done;
-    unsubscribe();
     res.end();
   } catch (error) {
     console.error("Copilot SDK Error:", error);
