@@ -259,7 +259,21 @@ function updateTooltipContent(html: string, isStreaming: boolean = false) {
   if (!tooltip) return;
   const contentRoot = tooltip.querySelector("#copilot-content-root");
   if (contentRoot) {
-    contentRoot.innerHTML = html + (isStreaming ? '<span class="copilot-streaming-cursor"></span>' : '');
+    let finalHtml = html;
+    if (isStreaming) {
+      const cursor = '<span class="copilot-streaming-cursor"></span>';
+      // Try to inject cursor before the very last closing tag to keep it inline
+      // We look for the last </ to insert before it.
+      // This works for </p>, </code></pre>, </ul>, etc.
+      const lastCloseTagIndex = finalHtml.lastIndexOf("</");
+      if (lastCloseTagIndex !== -1) {
+        finalHtml = finalHtml.substring(0, lastCloseTagIndex) + cursor + finalHtml.substring(lastCloseTagIndex);
+      } else {
+        // Fallback if no closing tag found (plain text)
+        finalHtml += cursor;
+      }
+    }
+    contentRoot.innerHTML = finalHtml;
     
     // Auto-scroll to bottom while streaming
     if (isStreaming) {
