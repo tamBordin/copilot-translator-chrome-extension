@@ -4,6 +4,7 @@ const translationCache = new Map<string, string>();
 let isExtensionEnabled = true;
 let targetLanguage = "Thai";
 let debounceDelay = 350;
+let isAltDown = false;
 
 const SERVER_URL = "http://localhost:5555/translate";
 
@@ -443,14 +444,39 @@ function handleSelection(event: MouseEvent | KeyboardEvent) {
 }
 
 document.addEventListener("mouseup", (e) => {
-  // If clicking inside tooltip, don't hide or re-trigger
-  if (tooltip && tooltip.contains(e.target as Node)) return;
-  handleSelection(e);
+  // ถ้า Alt ค้างอยู่ และมี selection ให้แปล
+  if (isAltDown) {
+    handleSelection(e);
+    return;
+  }
+
+  // คลิกข้างนอก tooltip ให้ซ่อน
+  if (tooltip && !tooltip.contains(e.target as Node)) {
+    hideTooltip();
+  }
 });
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") hideTooltip();
+
+  if (e.key === "Alt") {
+    isAltDown = true;
+  }
+
   if (e.altKey && e.key.toLowerCase() === "t") {
-    handleSelection(e);
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim();
+
+    if (selectedText && selectedText.length >= 2) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleSelection(e);
+    }
+  }
+});
+
+document.addEventListener("keyup", (e) => {
+  if (e.key === "Alt") {
+    isAltDown = false;
   }
 });
