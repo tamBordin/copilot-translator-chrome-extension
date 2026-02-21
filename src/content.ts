@@ -4,8 +4,6 @@ const translationCache = new Map<string, string>();
 let isExtensionEnabled = true;
 let targetLanguage = "Thai";
 let debounceDelay = 350;
-let isAltDown = false;
-
 const SERVER_URL = "http://localhost:5555/translate";
 
 interface StorageResult {
@@ -205,7 +203,7 @@ function createTooltip() {
   div.style.borderRadius = "12px";
   div.style.boxShadow = "0 20px 50px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1)";
   div.style.fontSize = "15px";
-  div.style.maxWidth = "450px";
+  div.style.maxWidth = "720px";
   div.style.minWidth = "200px";
   div.style.opacity = "0";
   div.style.transform = "translateY(10px) scale(0.95)";
@@ -222,7 +220,7 @@ function createTooltip() {
   `;
 
   div.querySelector("#copilot-close-btn")?.addEventListener("click", hideTooltip);
-  
+
   document.body.appendChild(div);
   tooltip = div;
   return div;
@@ -244,7 +242,7 @@ function positionTooltip(el: HTMLElement, x: number, y: number) {
   const clientY = y - scrollY;
   const spaceBelow = screenHeight - clientY - 40;
   const spaceAbove = clientY - 40;
-  
+
   let top;
   if (spaceBelow >= 300 || spaceBelow > spaceAbove) {
     top = y + spacing;
@@ -275,7 +273,7 @@ function updateTooltipContent(html: string, isStreaming: boolean = false) {
       }
     }
     contentRoot.innerHTML = finalHtml;
-    
+
     // Auto-scroll to bottom while streaming
     if (isStreaming) {
       contentRoot.scrollTop = contentRoot.scrollHeight;
@@ -287,25 +285,55 @@ function updateTooltipContent(html: string, isStreaming: boolean = false) {
   }
 }
 
-function parseMarkdown(text: string): string {
-  if (!text) return "";
-  let html = text
+function escapeHtml(s: string): string {
+  return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-  html = html.replace(/```([\s\S]*?)```/g, "<pre><code>$1</code></pre>");
+}
+
+function parseMarkdown(text: string): string {
+  if (!text) return "";
+
+  // 1. Extract fenced code blocks first (before any escaping)
+  const codeBlocks: string[] = [];
+  let html = text.replace(/```(\w*)\n?([\s\S]*?)```/g, (_match, lang, code) => {
+    const escaped = escapeHtml(code.replace(/^\n/, "").replace(/\n$/, ""));
+    const langLabel = lang ? `<span style="font-size:11px;color:#8b949e;float:right;margin-top:-2px;">${escapeHtml(lang)}</span>` : "";
+    codeBlocks.push(`<pre style="position:relative">${langLabel}<code>${escaped}</code></pre>`);
+    return `\x00CODE${codeBlocks.length - 1}\x00`;
+  });
+
+  // 2. Escape HTML in the rest of the text
+  html = escapeHtml(html);
+
+  // 3. Inline code
   html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+  // 4. Bold / italic
   html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  html = html.replace(/^\s*-\s+(.*)/gm, "<li>$1</li>");
-  html = html.replace(/(<li>.*<\/li>)/s, "<ul>$1</ul>");
+
+  // 5. List items
+  html = html.replace(/^\s*[-*]\s+(.*)/gm, "<li>$1</li>");
+  html = html.replace(/(<li>[\s\S]*?<\/li>)(\n|(?=\x00))/g, "$1");
+  html = html.replace(/((?:<li>[\s\S]*?<\/li>\n?)+)/g, "<ul>$1</ul>");
+
+  // 6. Paragraphs — split on blank lines
   html = html
-    .split(/\n\n/)
-    .map((p) => {
-      if (p.trim().startsWith("<pre") || p.trim().startsWith("<ul")) return p;
-      return `<p>${p}</p>`;
+    .split(/\n{2,}/)
+    .map((block) => {
+      const t = block.trim();
+      if (!t) return "";
+      if (t.startsWith("\x00CODE") || t.startsWith("<ul>") || t.startsWith("<li>")) return t;
+      // convert single newlines to <br>
+      return `<p>${t.replace(/\n/g, "<br>")}</p>`;
     })
     .join("");
+
+  // 7. Restore code blocks
+  html = html.replace(/\x00CODE(\d+)\x00/g, (_m, i) => codeBlocks[parseInt(i)]);
+
   return html;
 }
 
@@ -319,11 +347,11 @@ async function translateAndShow(text: string, x: number, y: number) {
     el.style.opacity = "1";
     el.style.transform = "translateY(0) scale(1)";
     updateTooltipContent(parseMarkdown(cached), false);
-    
+
     // Actions listeners
     el.querySelector("#copilot-btn-speak")?.replaceWith(el.querySelector("#copilot-btn-speak")!.cloneNode(true));
     el.querySelector("#copilot-btn-copy")?.replaceWith(el.querySelector("#copilot-btn-copy")!.cloneNode(true));
-    
+
     el.querySelector("#copilot-btn-speak")?.addEventListener("click", () => {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(cached);
@@ -349,7 +377,7 @@ async function translateAndShow(text: string, x: number, y: number) {
       <span style="font-weight: 500;">Translating...</span>
     </div>
   `, true);
-  
+
   positionTooltip(el, x, y);
   el.style.opacity = "1";
   el.style.transform = "translateY(0) scale(1)";
@@ -367,7 +395,7 @@ async function translateAndShow(text: string, x: number, y: number) {
 
     const decoder = new TextDecoder();
     let accumulated = "";
-    
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -444,12 +472,6 @@ function handleSelection(event: MouseEvent | KeyboardEvent) {
 }
 
 document.addEventListener("mouseup", (e) => {
-  // ถ้า Alt ค้างอยู่ และมี selection ให้แปล
-  if (isAltDown) {
-    handleSelection(e);
-    return;
-  }
-
   // คลิกข้างนอก tooltip ให้ซ่อน
   if (tooltip && !tooltip.contains(e.target as Node)) {
     hideTooltip();
@@ -459,8 +481,15 @@ document.addEventListener("mouseup", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") hideTooltip();
 
+  // กด Alt เพื่อแปล text ที่ select ไว้ (select ก่อน แล้วค่อยกด Alt)
   if (e.key === "Alt") {
-    isAltDown = true;
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim();
+    if (selectedText && selectedText.length >= 2) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleSelection(e);
+    }
   }
 
   if (e.altKey && e.key.toLowerCase() === "t") {
@@ -475,8 +504,4 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-document.addEventListener("keyup", (e) => {
-  if (e.key === "Alt") {
-    isAltDown = false;
-  }
-});
+
