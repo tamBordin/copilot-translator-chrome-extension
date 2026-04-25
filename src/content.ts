@@ -129,7 +129,7 @@ style.textContent = `
   .copilot-content {
     word-break: break-word;
     font-size: 16px;
-    color: #f0f0f0;
+    color: white;
     max-height: 350px;
     overflow-y: auto;
     padding-right: 4px;
@@ -156,6 +156,7 @@ style.textContent = `
   }
   .copilot-content pre {
     background: #111;
+    color: white;
     padding: 12px;
     border-radius: 8px;
     overflow-x: auto;
@@ -198,7 +199,7 @@ function createTooltip() {
   div.style.zIndex = "2147483647";
   div.style.backgroundColor = "rgba(22, 27, 34, 0.98)";
   div.style.backdropFilter = "blur(20px) saturate(180%)";
-  div.style.color = "#c9d1d9";
+  div.style.color = "white";
   div.style.padding = "16px";
   div.style.borderRadius = "12px";
   div.style.boxShadow = "0 20px 50px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.1)";
@@ -327,7 +328,7 @@ function parseMarkdown(text: string): string {
       if (!t) return "";
       if (t.startsWith("\x00CODE") || t.startsWith("<ul>") || t.startsWith("<li>")) return t;
       // convert single newlines to <br>
-      return `<p>${t.replace(/\n/g, "<br>")}</p>`;
+      return `<p style="color: #c9d1d9;">${t.replace(/\n/g, "<br>")}</p>`;
     })
     .join("");
 

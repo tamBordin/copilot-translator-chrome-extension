@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, approveAll } from "@github/copilot-sdk";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -22,12 +22,21 @@ async function getSession() {
   if (!globalSession) {
     console.log("Creating new Copilot session...");
     globalSession = await client.createSession({
-      model: "gpt-4.1",
+      onPermissionRequest: approveAll,
+      model: "gpt-5-mini",
+      reasoningEffort: "low",
       streaming: true,
       systemMessage: {
         mode: "replace",
-        content:
-          "You are a helpful assistant. You will receive instructions in each prompt.",
+        content: `
+Instruction:
+- ห้ามตอบคำถามโดยหลอนไปเอง
+- ถ้าผู้ใช้ให้แปลภาษา ให้แปลเป็นภาษาไทย เท่านั้น และถ้าเป็นศัพท์ที่เฉพาะเกี่ยวกับเทคนิค ให้ใช้คำศัพท์ที่เป็นที่ยอมรับในวงการนั้น ๆ หรือคำทับศัพท์ที่คนไทยใช้กันในยุคปัจจุบัน
+- อาจจะมี icons นิดหน่อย ประกอบเพื่อความเข้าใจที่ดีขึ้น
+- ไม่ต้องเอาคำศัพท์มาบอก หรือ original source ห้ามติดมา
+- ให้แปลทุกอันห้ามตกหล่น ห้ามสรุป
+- ถ้าคิดว่านี่คือเกี่ยวกับ coding ให้อธิบายเป็น code block ได้ให้ใส่ code block มา
+`,
       },
     });
   }
@@ -84,7 +93,9 @@ Instruction:
         (err.message.includes("Session not found") ||
           err.message.includes("session not found"))
       ) {
-        console.warn("Session expired or not found. Retrying with new session...");
+        console.warn(
+          "Session expired or not found. Retrying with new session...",
+        );
         globalSession = null; // Force new session creation
         session = await getSession();
         await processRequest(session, prompt, res);
